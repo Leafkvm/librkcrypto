@@ -18,6 +18,7 @@
 #include "rkcrypto_core_int.h"
 #include "rkcrypto_trace.h"
 #include "rkcrypto_rsa_helper.h"
+#include "rkcrypto_ec_helper.h"
 #include "rk_list.h"
 
 #ifndef ARRAY_SIZE
@@ -906,6 +907,49 @@ exit:
 	return rk_destroy_session(handle);
 }
 
+RK_RES rk_hash_virt(uint32_t algo, const uint8_t *input, uint32_t in_len,
+			 uint8_t *hash, uint32_t *hash_len)
+{
+	RK_RES res;
+	uint32_t tmp_hash_len = 0;
+	rk_hash_config hash_cfg;
+	rk_handle hash_hdl = 0;
+
+	RK_CRYPTO_CHECK_PARAM(algo <= RK_ALGO_HASH_TOP || algo <= RK_ALGO_HASH_BUTT);
+	RK_CRYPTO_CHECK_PARAM(!input || in_len == 0);
+	RK_CRYPTO_CHECK_PARAM(!hash || !hash_len);
+
+	tmp_hash_len = rk_get_hash_len(algo);
+	if (tmp_hash_len > *hash_len) {
+		E_TRACE("hash buffer too small.");
+		return RK_CRYPTO_ERR_OUT_OF_MEMORY;
+	}
+
+	memset(&hash_cfg, 0x00, sizeof(hash_cfg));
+
+	hash_cfg.algo = algo;
+
+	res = rk_hash_init(&hash_cfg, &hash_hdl);
+	if (res) {
+		printf("rk_hash_init error! res: 0x%08x\n", res);
+		goto exit;
+	}
+
+	res = rk_hash_update_virt(hash_hdl, input, in_len);
+	if (res) {
+		printf("rk_hash_update_virt error! res: 0x%08x\n", res);
+		rk_hash_final(hash_hdl, NULL);
+		goto exit;
+	}
+
+	res = rk_hash_final(hash_hdl, hash);
+
+	if (res == RK_CRYPTO_SUCCESS)
+		*hash_len = tmp_hash_len;
+exit:
+	return res;
+}
+
 RK_RES rk_crypto_fd_ioctl(uint32_t request, struct crypt_fd_map_op *mop)
 {
 	RK_RES res;
@@ -1132,6 +1176,104 @@ RK_RES rk_rsa_verify(const rk_rsa_pub_key_pack *pub, enum RK_RSA_SIGN_PADDING pa
 		goto exit;
 	}
 
+exit:
+	return res ? RK_CRYPTO_ERR_VERIFY : RK_CRYPTO_SUCCESS;
+}
+
+static RK_RES rk_ec_crypt_common(void *key, uint16_t flag, uint16_t op, uint8_t curve,
+				 const uint8_t *in, uint32_t in_len,
+				 uint8_t *out, uint32_t *out_len)
+{
+	RK_RES res = RK_CRYPTO_ERR_GENERIC;
+	uint8_t *asn1_key = NULL;
+	uint16_t asn1_key_len = RK_EC_BER_KEY_MAX;
+	uint16_t key_bits = 0;
+	struct crypt_ec_op rop;
+
+	CHECK_CRYPTO_INITED();
+
+	RK_CRYPTO_CHECK_PARAM(!key);
+
+	asn1_key = malloc(asn1_key_len);
+	if (!asn1_key) {
+		E_TRACE("malloc asn1_key failed!");
+		return RK_CRYPTO_ERR_OUT_OF_MEMORY;
+	}
+
+	memset(asn1_key, 0x00, asn1_key_len);
+
+	/* Encode the key in ASN1 format */
+	if ((flag & COP_FLAG_ASYM_PRIV) == COP_FLAG_ASYM_PRIV)
+		res = rk_ec_privkey_encode((rk_ec_priv_key_pack *)key,
+					    asn1_key, &asn1_key_len, &key_bits);
+	else
+		res = rk_ec_pubkey_encode((rk_ec_pub_key_pack *)key,
+					   asn1_key, &asn1_key_len, &key_bits);
+
+	if (res) {
+		E_TRACE("asn1 encode failed %x!", res);
+		res = RK_CRYPTO_ERR_KEY;
+		goto exit;
+	}
+
+	memset(&rop, 0x00, sizeof(rop));
+
+	rop.op      = op;
+	rop.flags   = flag;
+	rop.curve   = curve;
+	rop.key     = (unsigned long)asn1_key | (__u64)0;
+	rop.key_len = asn1_key_len;
+	rop.in      = (unsigned long)in | (__u64)0;
+	rop.in_len  = in_len;
+	rop.out     = (unsigned long)out | (__u64)0;
+	rop.out_len = *out_len;
+
+	res = xioctl(cryptodev_fd, RIOCCRYPT_EC_CRYPT, &rop);
+	if (res) {
+		E_TRACE("ioctl cryptodev_fd failed! [%d]", -errno);
+		goto exit;
+	}
+
+	*out_len = rop.out_len;
+	res = RK_CRYPTO_SUCCESS;
+exit:
+	memset(asn1_key, 0x00, asn1_key_len);
+
+	free(asn1_key);
+
+	return res;
+}
+
+RK_RES rk_ec_verify(const rk_ec_pub_key_pack *pub, int hash_algo,
+		    const uint8_t *in, uint32_t in_len, const uint8_t *hash,
+		    uint8_t *sign, uint32_t sign_len)
+{
+	RK_RES res = RK_CRYPTO_ERR_VERIFY;
+	uint8_t tmp_hash[SHA512_HASH_SIZE];
+	uint32_t tmp_hash_len = rk_get_hash_len(hash_algo);
+
+	memset(tmp_hash, 0x00, sizeof(tmp_hash));
+
+	RK_CRYPTO_CHECK_PARAM(!in && !hash);
+	RK_CRYPTO_CHECK_PARAM(in && in_len == 0);
+	RK_CRYPTO_CHECK_PARAM(!pub || !sign || sign_len == 0);
+	RK_CRYPTO_CHECK_PARAM(tmp_hash_len == 0);
+
+	if (!hash) {
+		res = rk_hash_virt(hash_algo, in, in_len, tmp_hash, &tmp_hash_len);
+	} else {
+		memcpy(tmp_hash, hash, tmp_hash_len);
+	}
+
+	res = rk_ec_crypt_common((void *)pub, COP_FLAG_ASYM_PUB, AOP_VERIFY, pub->key.curve & 0xff,
+				 tmp_hash, tmp_hash_len, sign, &sign_len);
+	if (res) {
+		if (res == RK_CRYPTO_ERR_NOT_SUPPORTED)
+			return res;
+
+		D_TRACE("ec rk_ec_crypt_common error[%x]!", res);
+		goto exit;
+	}
 exit:
 	return res ? RK_CRYPTO_ERR_VERIFY : RK_CRYPTO_SUCCESS;
 }

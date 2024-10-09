@@ -149,6 +149,15 @@ enum RK_RSA_KEY_TYPE {
 	RK_RSA_KEY_TYPE_MAX,
 };
 
+enum RK_EC_KEY_TYPE {
+	RK_EC_KEY_TYPE_PLAIN = 0,
+	RK_EC_KEY_TYPE_KEY0_ENC = RK_OEM_OTP_KEY0 +1,
+	RK_EC_KEY_TYPE_KEY1_ENC,
+	RK_EC_KEY_TYPE_KEY2_ENC,
+	RK_EC_KEY_TYPE_KEY3_ENC,
+	RK_EC_KEY_TYPE_MAX,
+};
+
 enum RK_RSA_CRYPT_PADDING {
 	RK_RSA_CRYPT_PADDING_NONE = 0x00,	/* without padding */
 	RK_RSA_CRYPT_PADDING_BLOCK_TYPE_0,	/* PKCS#1 block type 0 padding*/
@@ -173,6 +182,15 @@ enum RK_RSA_SIGN_PADDING {
 	RK_RSA_SIGN_PADDING_PKCS1_PSS_SHA256,	/* PKCS#1 RSASSA_PKCS1_PSS_SHA256 signature*/
 	RK_RSA_SIGN_PADDING_PKCS1_PSS_SHA384,	/* PKCS#1 RSASSA_PKCS1_PSS_SHA1 signature*/
 	RK_RSA_SIGN_PADDING_PKCS1_PSS_SHA512,	/* PKCS#1 RSASSA_PKCS1_PSS_SHA256 signature*/
+};
+
+enum ecc_curve {
+	RK_EC_CURVE_SM2 = 0,
+	RK_EC_CURVE_P192,
+	RK_EC_CURVE_P224,
+	RK_EC_CURVE_P256,
+	RK_EC_CURVE_P384,
+	RK_EC_CURVE_P521,
 };
 
 typedef struct {
@@ -242,5 +260,31 @@ typedef struct {
 	enum RK_RSA_KEY_TYPE	key_type;
 	rk_rsa_priv_key		key;
 } rk_rsa_priv_key_pack;
+
+typedef struct {
+	uint32_t		curve;
+	const uint8_t		*x;
+	const uint8_t		*y;
+
+	uint16_t		x_len;
+	uint16_t		y_len;
+} rk_ec_pub_key;
+
+typedef struct {
+	enum RK_EC_KEY_TYPE	key_type;
+	rk_ec_pub_key		key;
+} rk_ec_pub_key_pack;
+
+typedef struct {
+	uint32_t		curve;
+	const uint8_t		*d;
+
+	uint16_t		d_len;
+} rk_ec_priv_key;
+
+typedef struct {
+	enum RK_EC_KEY_TYPE	key_type;
+	rk_ec_priv_key		key;
+} rk_ec_priv_key_pack;
 
 #endif /* _RKCRYPTO_COMMON_H_ */
