@@ -19,6 +19,7 @@ RK_RES demo_hmac(void);
 RK_RES demo_hmac_virt(void);
 
 RK_RES demo_rsa(void);
+RK_RES demo_ec(void);
 
 RK_RES demo_ae(void);
 RK_RES demo_ae_virt(void);

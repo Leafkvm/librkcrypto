@@ -20,13 +20,14 @@ static void guide(void)
 	printf("	[-i]: RSA\n");
 	printf("	[-j]: AE\n");
 	printf("	[-k]: AE_VIRT\n");
+	printf("	[-l]: ECC/SM2\n");
 }
 
 int main(int argc, char *argv[])
 {
 	RK_RES res = RK_CRYPTO_ERR_GENERIC;
 	int opt = 0;
-	const char *opt_string = "abcdefghijk";
+	const char *opt_string = "abcdefghijkl";
 
 	if (argc < 2)
 		guide();
@@ -76,6 +77,10 @@ int main(int argc, char *argv[])
 		case 'k':
 			printf("TEST AE_VIRT:\n");
 			res = demo_ae_virt();
+			break;
+		case 'l':
+			printf("TEST EC:\n");
+			res = demo_ec();
 			break;
 		case '?':
 			printf("error optopt: %c\n", optopt);
