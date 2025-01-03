@@ -49,12 +49,19 @@ RK_RES rk_ec_pubkey_encode(rk_ec_pub_key_pack *pub,
 	uint32_t nbits = rk_ec_get_curve_bits(ec_key->curve);
 	uint32_t nbytes = ROUNDUP(nbits, 8) / 8;
 
+	RK_CRYPTO_CHECK_PARAM(nbits == 0);
 	RK_CRYPTO_CHECK_PARAM(!asn1_key || !asn1_key_len || !pub || !key_bits);
 	RK_CRYPTO_CHECK_PARAM(!ec_key->x || ec_key->x_len == 0);
 	RK_CRYPTO_CHECK_PARAM(!ec_key->y || ec_key->y_len == 0);
-	RK_CRYPTO_CHECK_PARAM(ec_key->x_len != ec_key->y_len);
 	RK_CRYPTO_CHECK_PARAM(pub->key_type != RK_EC_KEY_TYPE_PLAIN);
-	RK_CRYPTO_CHECK_PARAM(ec_key->x_len != nbytes);
+
+	if (ec_key->curve != RK_EC_CURVE_P521) {
+		RK_CRYPTO_CHECK_PARAM(ec_key->x_len != ec_key->y_len);
+		RK_CRYPTO_CHECK_PARAM(ec_key->x_len != nbytes);
+	} else {
+		RK_CRYPTO_CHECK_PARAM(ec_key->x_len != nbytes && ec_key->x_len != nbytes - 1);
+		RK_CRYPTO_CHECK_PARAM(ec_key->y_len != nbytes && ec_key->y_len != nbytes - 1);
+	}
 
 	out_max = *asn1_key_len;
 

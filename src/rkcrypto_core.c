@@ -915,7 +915,7 @@ RK_RES rk_hash_virt(uint32_t algo, const uint8_t *input, uint32_t in_len,
 	rk_hash_config hash_cfg;
 	rk_handle hash_hdl = 0;
 
-	RK_CRYPTO_CHECK_PARAM(algo <= RK_ALGO_HASH_TOP || algo <= RK_ALGO_HASH_BUTT);
+	RK_CRYPTO_CHECK_PARAM(algo <= RK_ALGO_HASH_TOP || algo >= RK_ALGO_HASH_BUTT);
 	RK_CRYPTO_CHECK_PARAM(!input || in_len == 0);
 	RK_CRYPTO_CHECK_PARAM(!hash || !hash_len);
 
@@ -962,7 +962,8 @@ RK_RES rk_crypto_fd_ioctl(uint32_t request, struct crypt_fd_map_op *mop)
 
 	res = xioctl(cryptodev_fd, request, mop);
 	if (res) {
-		E_TRACE("ioctl cryptodev_fd failed!");
+		if (res != RK_CRYPTO_ERR_NOT_SUPPORTED)
+			D_TRACE("ioctl cryptodev_fd failed!");
 		return res;
 	}
 
@@ -984,7 +985,7 @@ static RK_RES rk_rsa_crypt_common(void *key, uint16_t flag, uint16_t op,
 
 	asn1_key = malloc(asn1_key_len);
 	if (!asn1_key) {
-		E_TRACE("ioctl cryptodev_fd failed!");
+		E_TRACE("malloc asn1 failed!");
 		return RK_CRYPTO_ERR_OUT_OF_MEMORY;
 	}
 
@@ -1022,7 +1023,8 @@ static RK_RES rk_rsa_crypt_common(void *key, uint16_t flag, uint16_t op,
 
 	res = xioctl(cryptodev_fd, RIOCCRYPT_RSA_CRYPT, &rop);
 	if (res) {
-		E_TRACE("ioctl cryptodev_fd failed! [%d]", -errno);
+		if (res != RK_CRYPTO_ERR_NOT_SUPPORTED)
+			D_TRACE("ioctl cryptodev_fd failed! [%d]", -errno);
 		goto exit;
 	}
 
@@ -1230,7 +1232,8 @@ static RK_RES rk_ec_crypt_common(void *key, uint16_t flag, uint16_t op, uint8_t 
 
 	res = xioctl(cryptodev_fd, RIOCCRYPT_EC_CRYPT, &rop);
 	if (res) {
-		E_TRACE("ioctl cryptodev_fd failed! [%d]", -errno);
+		if (res != RK_CRYPTO_ERR_NOT_SUPPORTED)
+			D_TRACE("ioctl cryptodev_fd failed! [%d]", -errno);
 		goto exit;
 	}
 

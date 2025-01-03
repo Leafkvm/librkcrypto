@@ -184,7 +184,7 @@ enum RK_RSA_SIGN_PADDING {
 	RK_RSA_SIGN_PADDING_PKCS1_PSS_SHA512,	/* PKCS#1 RSASSA_PKCS1_PSS_SHA256 signature*/
 };
 
-enum ecc_curve {
+enum RK_EC_CURVE {
 	RK_EC_CURVE_SM2 = 0,
 	RK_EC_CURVE_P192,
 	RK_EC_CURVE_P224,
@@ -277,8 +277,12 @@ typedef struct {
 
 typedef struct {
 	uint32_t		curve;
+	const uint8_t		*x;
+	const uint8_t		*y;
 	const uint8_t		*d;
 
+	uint16_t		x_len;
+	uint16_t		y_len;
 	uint16_t		d_len;
 } rk_ec_priv_key;
 

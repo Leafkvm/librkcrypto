@@ -117,7 +117,7 @@ static RK_RES demo_ec_verify(void)
 {
 	rk_ec_pub_key_pack pub_key = TEST_INIT_EC_KEY(P192);
 
-	return demo_ec_verify_common("NIST-P192", &pub_key, RK_ALGO_HMAC_SHA1, g_ec_P192_hash,
+	return demo_ec_verify_common("NIST-P192", &pub_key, RK_ALGO_SHA1, g_ec_P192_hash,
 				     g_ec_P192_signature, sizeof(g_ec_P192_signature));
 }
 
@@ -125,7 +125,7 @@ static RK_RES demo_sm2_verify(void)
 {
 	rk_ec_pub_key_pack pub_key = TEST_INIT_EC_KEY(SM2);
 
-	return demo_ec_verify_common("SM2", &pub_key, RK_ALGO_HMAC_SM3, g_ec_SM2_hash,
+	return demo_ec_verify_common("SM2", &pub_key, RK_ALGO_SM3, g_ec_SM2_hash,
 				     g_ec_SM2_signature, sizeof(g_ec_SM2_signature));
 }
 
