@@ -252,6 +252,21 @@ int rk_ecdsa_sign2(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int 
 
 int rk_ecdsa_verify2(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len, 
 						unsigned char *r_data, unsigned int r_len, unsigned char *s_data, unsigned int s_len);
+int rk_ec_gen_key(mbed_ecc_key_t *key, mbedtls_ecp_group_id grp_id);
+
+int rk_sm2_sign(mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len, 
+						unsigned char *sig, unsigned int *sig_len);
+
+int rk_sm2_verify(mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len, 
+						unsigned char *sig, unsigned int sig_len);
+
+int mbedtls_sm2_sign( mbedtls_ecp_group *grp, mbedtls_mpi *r, mbedtls_mpi *s,
+                const mbedtls_mpi *d, const unsigned char *buf, size_t blen,
+                int (*f_rng)(void *, unsigned char *, size_t), void *p_rng );
+
+int mbedtls_sm2_verify( mbedtls_ecp_group *grp,
+                  const unsigned char *buf, size_t blen,
+                  const mbedtls_ecp_point *Q, const mbedtls_mpi *r, const mbedtls_mpi *s);
 
 #ifdef __cplusplus
 }

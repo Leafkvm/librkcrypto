@@ -214,3 +214,64 @@ RK_RES soft_hmac(uint32_t algo, const uint8_t *key, uint32_t key_len,
 	return ret == 0 ? RK_CRYPTO_SUCCESS : RK_CRYPTO_ERR_GENERIC;
 }
 
+static int rk_eckey2mbed(rk_ec_priv_key_pack *priv_key, mbed_ecc_key_t *mbed_key)
+{
+	memset(mbed_key, 0x00, sizeof(*mbed_key));
+
+	switch (priv_key->key.curve) {
+	case RK_EC_CURVE_SM2:
+		mbed_key->curve = MBEDTLS_ECP_DP_SM2P256V1;
+		mbed_key->key_len = 256;
+		break;
+	case RK_EC_CURVE_P192:
+		mbed_key->curve = MBEDTLS_ECP_DP_SECP192R1;
+		mbed_key->key_len = 192;
+		break;
+	case RK_EC_CURVE_P224:
+		mbed_key->curve = MBEDTLS_ECP_DP_SECP224R1;
+		mbed_key->key_len = 224;
+		break;
+	case RK_EC_CURVE_P256:
+		mbed_key->curve = MBEDTLS_ECP_DP_SECP256R1;
+		mbed_key->key_len = 256;
+		break;
+	case RK_EC_CURVE_P384:
+		mbed_key->curve = MBEDTLS_ECP_DP_SECP384R1;
+		mbed_key->key_len = 384;
+		break;
+	case RK_EC_CURVE_P521:
+		mbed_key->curve = MBEDTLS_ECP_DP_SECP521R1;
+		mbed_key->key_len = 521;
+		break;
+	default:
+		printf("curve %d not supported\n", priv_key->key.curve);
+		return -1;
+	}
+
+	memcpy(mbed_key->d, priv_key->key.d, priv_key->key.d_len);
+	mbed_key->d_len = priv_key->key.d_len;
+	memcpy(mbed_key->x, priv_key->key.x, priv_key->key.x_len);
+	mbed_key->x_len = priv_key->key.x_len;
+	memcpy(mbed_key->y, priv_key->key.y, priv_key->key.y_len);
+	mbed_key->y_len = priv_key->key.y_len;
+
+	return 0;
+}
+
+RK_RES soft_ec_sign(rk_ec_priv_key_pack *priv_key,
+		   const uint8_t *hash, uint32_t hash_len,
+		   uint8_t *sig, uint32_t *sig_len)
+{
+	int ret = -1;
+	mbed_ecc_key_t mbed_key;
+
+	if (rk_eckey2mbed(priv_key, &mbed_key))
+		return RK_CRYPTO_ERR_PARAMETER;
+
+	if (priv_key->key.curve == RK_EC_CURVE_SM2)
+		ret = rk_sm2_sign(&mbed_key, (uint8_t *)hash, hash_len, sig, sig_len);
+	else
+		ret = rk_ecdsa_sign(&mbed_key, (uint8_t *)hash, hash_len, sig, (size_t *)sig_len);
+
+	return ret == 0 ? RK_CRYPTO_SUCCESS : RK_CRYPTO_ERR_GENERIC;
+}

@@ -15,6 +15,7 @@
 #include "test_stress.h"
 #include "test_multi.h"
 #include "test_rsa.h"
+#include "test_ec.h"
 
 enum {
 	OPTION_TOP = 0,
@@ -31,6 +32,7 @@ enum {
 	STRESS,
 	MULTI,
 	RSA,
+	EC,
 	OPTION_BUTT,
 };
 
@@ -46,6 +48,7 @@ static void guide(void)
 	printf("\t-hash          Function of hash\n");
 	printf("\t-hmac          Function of hmac\n");
 	printf("\t-rsa           Function of rsa\n");
+	printf("\t-ec            Function of ECC/SM2\n");
 	printf("\t-setkey        Function of setkey. NOTE: it will write key to OTP area.\n");
 	printf("\t-otpkey        Function of otpkey\n");
 	printf("\t-mem           Maximum buffer size requested by crypto mem alloc, test until alloc failed\n");
@@ -79,6 +82,7 @@ int main(int argc, char *argv[])
 		{"stress",	1,	NULL,	STRESS},
 		{"multi",	0,	NULL,	MULTI},
 		{"rsa",		0,	NULL,	RSA},
+		{"ec",		0,	NULL,	EC},
 		{NULL,		0,	NULL,	0},
 	};
 
@@ -111,6 +115,9 @@ int main(int argc, char *argv[])
 			break;
 		case RSA:
 			test_rsa(verbose);
+			break;
+		case EC:
+			test_ec(verbose);
 			break;
 		case SETKEY:
 			test_write_otp_key();

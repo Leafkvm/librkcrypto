@@ -8,6 +8,7 @@
 #include "test_cipher.h"
 #include "test_hash.h"
 #include "test_rsa.h"
+#include "test_ec.h"
 #include "test_stress.h"
 #include "test_utils.h"
 

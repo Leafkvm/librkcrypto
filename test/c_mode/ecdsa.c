@@ -153,6 +153,96 @@ cleanup:
     return( ret );
 }
 
+
+/*
+ * Compute ECDSA signature of a hashed message (SEC1 4.1.3)
+ * Obviously, compared to SEC1 4.1.3, we skip step 4 (hash message)
+ */
+int mbedtls_sm2_sign( mbedtls_ecp_group *grp, mbedtls_mpi *r, mbedtls_mpi *s,
+                const mbedtls_mpi *d, const unsigned char *buf, size_t blen,
+                int (*f_rng)(void *, unsigned char *, size_t), void *p_rng )
+{
+    int ret, key_tries, sign_tries;
+    mbedtls_ecp_point R;
+    mbedtls_mpi k, e, tmp;
+
+    /* Fail cleanly on curves such as Curve25519 that can't be used for ECDSA */
+    if( grp->N.p == NULL )
+        return( MBEDTLS_ERR_ECP_BAD_INPUT_DATA );
+
+    mbedtls_ecp_point_init( &R );
+    mbedtls_mpi_init( &k ); mbedtls_mpi_init( &e );
+    mbedtls_mpi_init( &tmp );
+
+
+    sign_tries = 0;
+    do
+    {
+        /*
+         * Steps 1-3: generate a suitable ephemeral keypair
+         * r=(e+x1) mod n
+         */
+         /*
+         * Step 5: derive MPI from hashed message
+         */
+        MBEDTLS_MPI_CHK( derive_mpi( grp, &e, buf, blen ) );
+
+        key_tries = 0;
+        do
+        {
+            MBEDTLS_MPI_CHK( mbedtls_ecp_gen_keypair( grp, &k, &R, f_rng, p_rng ) );
+
+			//r=(e+x1) mod n
+			MBEDTLS_MPI_CHK( mbedtls_mpi_add_mpi(r, &e, &R.X) );
+            MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( r, r, &grp->N ) );
+
+            if( key_tries++ > 10 )
+            {
+                ret = MBEDTLS_ERR_ECP_RANDOM_FAILED;
+                goto cleanup;
+            }
+        }
+        while( mbedtls_mpi_cmp_int( r, 0 ) == 0 );
+
+		MBEDTLS_MPI_CHK(mbedtls_mpi_add_mpi(&tmp, r, &k));
+		if(mbedtls_mpi_cmp_mpi( &tmp, &grp->N ) == 0)
+			continue;
+
+		//tmp = (r*d) mod n
+		MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( &tmp, r, d ) );
+		MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( &tmp, &tmp, &grp->N ) );
+
+		//s = (k-tmp) mod n
+		MBEDTLS_MPI_CHK( mbedtls_mpi_sub_mpi( s, &k, &tmp ) );
+		MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( s, s, &grp->N ) );
+
+		//tmp = (d+1) mod n
+		MBEDTLS_MPI_CHK( mbedtls_mpi_add_int( &tmp, d, 1 ) );
+		MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( &tmp, &tmp, &grp->N ) );
+
+		//tmp = tmp^-1
+		MBEDTLS_MPI_CHK( mbedtls_mpi_inv_mod( &tmp, &tmp, &grp->N ));
+
+		//s = (s*tmp) mod n
+		MBEDTLS_MPI_CHK( mbedtls_mpi_mul_mpi( s, s, &tmp ) );
+		MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( s, s, &grp->N ) );
+
+        if( sign_tries++ > 10 )
+        {
+            ret = MBEDTLS_ERR_ECP_RANDOM_FAILED;
+            goto cleanup;
+        }
+    }
+    while( mbedtls_mpi_cmp_int( s, 0 ) == 0 );
+
+cleanup:
+    mbedtls_ecp_point_free( &R );
+    mbedtls_mpi_free( &k ); mbedtls_mpi_free( &e );
+	mbedtls_mpi_free( &tmp );
+
+    return( ret );
+}
+
 #if defined(MBEDTLS_ECDSA_DETERMINISTIC)
 /*
  * Deterministic signature wrapper
@@ -273,6 +363,78 @@ int mbedtls_ecdsa_verify( mbedtls_ecp_group *grp,
 cleanup:
     mbedtls_ecp_point_free( &R );
     mbedtls_mpi_free( &e ); mbedtls_mpi_free( &s_inv ); mbedtls_mpi_free( &u1 ); mbedtls_mpi_free( &u2 );
+
+    return( ret );
+}
+
+
+/*
+ * Verify ECDSA signature of hashed message (SEC1 4.1.4)
+ * Obviously, compared to SEC1 4.1.3, we skip step 2 (hash message)
+ */
+int mbedtls_sm2_verify( mbedtls_ecp_group *grp,
+                  const unsigned char *buf, size_t blen,
+                  const mbedtls_ecp_point *Q, const mbedtls_mpi *r, const mbedtls_mpi *s)
+{
+    int ret;
+    mbedtls_mpi e, s_inv, tmp;
+    mbedtls_ecp_point R;
+
+    mbedtls_ecp_point_init( &R );
+    mbedtls_mpi_init( &e ); mbedtls_mpi_init( &s_inv ); mbedtls_mpi_init( &tmp );
+
+    /* Fail cleanly on curves such as Curve25519 that can't be used for ECDSA */
+    if( grp->N.p == NULL )
+        return( MBEDTLS_ERR_ECP_BAD_INPUT_DATA );
+
+    /*
+     * Step 1: make sure r and s are in range 1..n-1
+     */
+    if( mbedtls_mpi_cmp_int( r, 1 ) < 0 || mbedtls_mpi_cmp_mpi( r, &grp->N ) >= 0 ||
+        mbedtls_mpi_cmp_int( s, 1 ) < 0 || mbedtls_mpi_cmp_mpi( s, &grp->N ) >= 0 )
+    {
+    	printf("%s %d, MBEDTLS_ERR_ECP_VERIFY_FAILED\n", __func__, __LINE__);
+        ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+        goto cleanup;
+    }
+
+    /*
+     * Additional precaution: make sure Q is valid
+     */
+    MBEDTLS_MPI_CHK( mbedtls_ecp_check_pubkey( grp, Q ) );
+
+    /*
+     * Step 3: derive MPI from hashed message
+     */
+    MBEDTLS_MPI_CHK( derive_mpi( grp, &e, buf, blen ) );
+
+	//tmp =(r+s) mod n  &&  t != 0
+	MBEDTLS_MPI_CHK( mbedtls_mpi_add_mpi( &tmp, r, s ) );
+	MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( &tmp, &tmp, &grp->N ) );
+	if( mbedtls_mpi_cmp_int( &tmp, 0) == 0)
+    {
+    	printf("%s %d, MBEDTLS_ERR_ECP_VERIFY_FAILED\n", __func__, __LINE__);
+        ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+        goto cleanup;
+    }
+
+	//point = s*G+t*PA
+	MBEDTLS_MPI_CHK( mbedtls_ecp_muladd( grp, &R, s, &grp->G, &tmp, Q ) );
+
+	//tmp = (eï¿½ï¿½ + xï¿½ï¿½1) modn
+	MBEDTLS_MPI_CHK( mbedtls_mpi_add_mpi( &tmp, &e, &R.X ) );
+	MBEDTLS_MPI_CHK( mbedtls_mpi_mod_mpi( &tmp, &tmp, &grp->N ) );
+
+    if( mbedtls_mpi_cmp_mpi( &tmp, r ) != 0 )
+    {
+    	printf("%s %d, MBEDTLS_ERR_ECP_VERIFY_FAILED\n", __func__, __LINE__);
+        ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+        goto cleanup;
+    }
+
+cleanup:
+    mbedtls_ecp_point_free( &R );
+    mbedtls_mpi_free( &e ); mbedtls_mpi_free( &s_inv ); mbedtls_mpi_free( &tmp );
 
     return( ret );
 }
@@ -450,7 +612,7 @@ static int rnd_std_rand( void *rng_state, unsigned char *output, size_t len )
 	static int srand_flag = 1;
 
 	if(srand_flag) {
-		//srand(time(NULL));//ÉèÖÃËæ»úÊýÖÖ×Ó¡£
+		//srand(time(NULL));//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¡ï¿½
 		srand(rand()+rand()+rand()+rand()*rand());
 		srand_flag = 0;
 	}
@@ -461,7 +623,7 @@ static int rnd_std_rand( void *rng_state, unsigned char *output, size_t len )
 }
 
 #if 0
-int rk_ecdsa_sign(mbed_ecc_key_t *ec_key, unsigned char *hash, unsigned int hash_len, 
+int rk_ecdsa_sign(mbed_ecc_key_t *ec_key, unsigned char *hash, unsigned int hash_len,
 											unsigned char *sig, unsigned int *sig_len)
 {
 	int ret;
@@ -476,10 +638,10 @@ int rk_ecdsa_sign(mbed_ecc_key_t *ec_key, unsigned char *hash, unsigned int hash
 
 	DEBUG("ec_key->curve = %d", ec_key->curve );
 	mbedtls_ecp_group_load(&grp, ec_key->curve);
-	
+
 	MBEDTLS_MPI_CHK(mbedtls_ecdsa_sign(grp, &r, &s, d, hash, hash_len, rnd_std_rand, NULL));
     MBEDTLS_MPI_CHK(ecdsa_signature_to_asn1(&r, &s, sig, sig_len ));
-	
+
 cleanup:
 	mbedtls_mpi_free(&r);
     mbedtls_mpi_free(&s);
@@ -489,7 +651,7 @@ cleanup:
 }
 #endif
 
-int rk_ecdsa_sign(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len, 
+int rk_ecdsa_sign(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len,
 						unsigned char *sig, size_t *sig_len)
 {
     int ret = -1;
@@ -504,7 +666,7 @@ int rk_ecdsa_sign(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int h
 
 	MBEDTLS_MPI_CHK( mbedtls_ecp_group_load( &grp, key->curve ) );
 	MBEDTLS_MPI_CHK( mbedtls_mpi_read_binary( &pri_key, key->d, key->d_len) );
-	
+
     if(mbedtls_ecp_check_privkey( &grp, &pri_key) != 0)
     {
     	printf("mbedtls_ecp_check_privkey error\n");
@@ -521,7 +683,7 @@ cleanup:
 	return ret;
 }
 
-int rk_ecdsa_verify(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len, 
+int rk_ecdsa_verify(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len,
 						unsigned char *sig, unsigned int sig_len)
 {
     int ret = -1;
@@ -541,7 +703,7 @@ int rk_ecdsa_verify(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int
 	MBEDTLS_MPI_CHK( mbedtls_mpi_read_binary( &pub_key.X, key->x, key->x_len) );
 	MBEDTLS_MPI_CHK( mbedtls_mpi_read_binary( &pub_key.Y, key->y, key->y_len) );
 	MBEDTLS_MPI_CHK( mbedtls_mpi_lset( &pub_key.Z, 1 ));
-	
+
     if(mbedtls_ecp_check_pubkey( &grp, &pub_key) != 0)
     {
     	printf("mbedtls_ecp_check_privkey error\n");
@@ -568,13 +730,13 @@ int rk_ecdsa_verify(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int
         ret += MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
         goto cleanup;
     }
-	
+
 	if( ( ret = mbedtls_ecdsa_verify( &grp, hash, hash_len, &pub_key, &r, &s ) ) != 0 )
         goto cleanup;
 
     if( p != end )
         ret = MBEDTLS_ERR_ECP_SIG_LEN_MISMATCH;
-	
+
 cleanup:
 	mbedtls_mpi_free(&r);
     mbedtls_mpi_free(&s);
@@ -583,7 +745,7 @@ cleanup:
 	return ret;
 }
 
-int rk_ecdsa_sign2(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len, 
+int rk_ecdsa_sign2(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len,
 						unsigned char *r_data, unsigned int *r_len, unsigned char *s_data, unsigned int *s_len)
 {
     int ret = -1;
@@ -598,7 +760,7 @@ int rk_ecdsa_sign2(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int 
 
 	MBEDTLS_MPI_CHK( mbedtls_ecp_group_load( &grp, key->curve ) );
 	MBEDTLS_MPI_CHK( mbedtls_mpi_read_binary( &pri_key, key->d, key->d_len) );
-	
+
     if(mbedtls_ecp_check_privkey( &grp, &pri_key) != 0)
     {
     	printf("mbedtls_ecp_check_privkey error\n");
@@ -620,7 +782,7 @@ cleanup:
 	return ret;
 }
 
-int rk_ecdsa_verify2(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len, 
+int rk_ecdsa_verify2(const mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len,
 						unsigned char *r_data, unsigned int r_len, unsigned char *s_data, unsigned int s_len)
 {
     int ret = -1;
@@ -650,7 +812,7 @@ int rk_ecdsa_verify2(const mbed_ecc_key_t *key, unsigned char *hash, unsigned in
 	if( ( ret = mbedtls_ecdsa_verify( &grp, hash, hash_len, &pub_key, &r, &s ) ) != 0 )
         goto cleanup;
 
-	
+
 cleanup:
 	mbedtls_mpi_free(&r);
     mbedtls_mpi_free(&s);
@@ -659,5 +821,148 @@ cleanup:
 	return ret;
 }
 
+int rk_sm2_sign(mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len,
+                unsigned char *sig, unsigned int *sig_len)
+{
+    int ret = -1;
+    mbedtls_ecp_group grp;
+    mbedtls_mpi r, s;
+    mbedtls_mpi pri_key;
+
+    mbedtls_ecp_group_init( &grp );
+    mbedtls_mpi_init( &pri_key);
+    mbedtls_mpi_init(&r);
+    mbedtls_mpi_init(&s);
+
+    MBEDTLS_MPI_CHK( mbedtls_ecp_group_load( &grp, key->curve ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_read_binary( &pri_key, key->d, key->d_len) );
+
+    if(mbedtls_ecp_check_privkey( &grp, &pri_key) != 0)
+    {
+        printf("mbedtls_ecp_check_privkey error\n");
+        return -1;
+    }
+
+    MBEDTLS_MPI_CHK(mbedtls_sm2_sign(&grp, &r, &s, &pri_key, hash, hash_len, rnd_std_rand, NULL));
+    MBEDTLS_MPI_CHK(ecdsa_signature_to_asn1(&r, &s, sig, (size_t *)sig_len ));
+cleanup:
+    mbedtls_mpi_free(&r);
+    mbedtls_mpi_free(&s);
+    mbedtls_ecp_group_free( &grp );
+    mbedtls_mpi_free( &pri_key);
+    return ret;
+}
+
+int rk_sm2_verify(mbed_ecc_key_t *key, unsigned char *hash, unsigned int hash_len,
+                  unsigned char *sig, unsigned int sig_len)
+{
+    int ret = -1;
+    mbedtls_ecp_group grp;
+    unsigned char *p = (unsigned char *) sig;
+    const unsigned char *end = sig + sig_len;
+    size_t len;
+    mbedtls_mpi r, s;
+    mbedtls_ecp_point pub_key;
+
+    mbedtls_ecp_group_init( &grp );
+    mbedtls_ecp_point_init( &pub_key);
+    mbedtls_mpi_init(&r);
+    mbedtls_mpi_init(&s);
+
+    MBEDTLS_MPI_CHK( mbedtls_ecp_group_load( &grp, key->curve ) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_read_binary( &pub_key.X, key->x, key->x_len) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_read_binary( &pub_key.Y, key->y, key->y_len) );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_lset( &pub_key.Z, 1 ));
+
+    if(mbedtls_ecp_check_pubkey( &grp, &pub_key) != 0)
+    {
+        printf("mbedtls_ecp_check_privkey error\n");
+        return -1;
+    }
+
+     if( ( ret = mbedtls_asn1_get_tag( &p, end, &len,
+                                      MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) ) != 0 )
+    {
+        ret += MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+
+    if( p + len != end )
+    {
+        ret = MBEDTLS_ERR_ECP_BAD_INPUT_DATA +
+              MBEDTLS_ERR_ASN1_LENGTH_MISMATCH;
+        goto cleanup;
+    }
+
+    if( ( ret = mbedtls_asn1_get_mpi( &p, end, &r ) ) != 0 ||
+        ( ret = mbedtls_asn1_get_mpi( &p, end, &s ) ) != 0 )
+    {
+        ret += MBEDTLS_ERR_ECP_BAD_INPUT_DATA;
+        goto cleanup;
+    }
+
+    if( ( ret = mbedtls_sm2_verify( &grp, hash, hash_len, &pub_key, &r, &s ) ) != 0 )
+        goto cleanup;
+
+    if( p != end )
+        ret = MBEDTLS_ERR_ECP_SIG_LEN_MISMATCH;
+
+cleanup:
+    mbedtls_mpi_free(&r);
+    mbedtls_mpi_free(&s);
+    mbedtls_ecp_group_free( &grp );
+    mbedtls_ecp_point_free( &pub_key);
+    return ret;
+}
+
+
+int rk_ec_gen_key(mbed_ecc_key_t *key, mbedtls_ecp_group_id grp_id)
+{
+    int ret;
+    mbedtls_ecp_keypair ecp_key;
+
+    memset(&ecp_key, 0x00, sizeof(ecp_key));
+    if(key == NULL)
+        return -1;
+    ret = mbedtls_ecp_gen_key( grp_id, &ecp_key, rnd_std_rand, NULL);
+    if(ret != 0) return ret;
+
+    memset(key, 0x00, sizeof(*key));
+    key->d_len = mbedtls_mpi_size( &ecp_key.d );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &ecp_key.d, key->d, key->d_len) );
+
+    key->x_len = mbedtls_mpi_size( &ecp_key.Q.X );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &ecp_key.Q.X, key->x, key->x_len) );
+
+    key->y_len = mbedtls_mpi_size( &ecp_key.Q.Y );
+    MBEDTLS_MPI_CHK( mbedtls_mpi_write_binary( &ecp_key.Q.Y, key->y, key->y_len) );
+
+    key->curve = grp_id;
+
+    switch(grp_id){
+        case MBEDTLS_ECP_DP_SECP192R1:     /*!< 192-bits NIST curve  */
+            key->key_len = 192;
+            break;
+        case MBEDTLS_ECP_DP_SECP224R1:     /*!< 224-bits NIST curve  */
+            key->key_len = 224;
+            break;
+        case MBEDTLS_ECP_DP_SECP256R1:     /*!< 256-bits NIST curve  */
+            key->key_len = 256;
+            break;
+        case MBEDTLS_ECP_DP_SM2P256V1:
+            key->key_len = 256;
+            break;
+        case MBEDTLS_ECP_DP_SECP384R1:     /*!< 384-bits NIST curve  */
+            key->key_len = 384;
+            break;
+        case MBEDTLS_ECP_DP_SECP521R1:     /*!< 521-bits NIST curve  */
+            key->key_len = 521;
+            break;
+        default:
+            return -1;
+    }
+cleanup:
+    return ret;
+}
 
 #endif /* MBEDTLS_ECDSA_C */

@@ -30,9 +30,11 @@
 #define MBEDTLS_ECP_DP_SECP256R1_ENABLED
 #define MBEDTLS_ECP_DP_SECP384R1_ENABLED
 #define MBEDTLS_ECP_DP_SECP521R1_ENABLED
+
 #define MBEDTLS_ECP_DP_SECP192K1_ENABLED
 #define MBEDTLS_ECP_DP_SECP224K1_ENABLED
 #define MBEDTLS_ECP_DP_SECP256K1_ENABLED
+#define MBEDTLS_ECP_DP_SM2P256V1_ENABLED
 
 /*
  * ECP error codes
@@ -84,7 +86,8 @@ typedef enum
     MBEDTLS_ECP_DP_CURVE25519,           /*!< Curve25519               */
     MBEDTLS_ECP_DP_SECP192K1,      /*!< 192-bits "Koblitz" curve */
     MBEDTLS_ECP_DP_SECP224K1,      /*!< 224-bits "Koblitz" curve */
-    MBEDTLS_ECP_DP_SECP256K1      /*!< 256-bits "Koblitz" curve */
+    MBEDTLS_ECP_DP_SECP256K1,      /*!< 256-bits "Koblitz" curve */
+    MBEDTLS_ECP_DP_SM2P256V1,      /*!< */
 } mbedtls_ecp_group_id;
 
 /**
@@ -672,6 +675,13 @@ int mbedtls_ecp_gen_key( mbedtls_ecp_group_id grp_id, mbedtls_ecp_keypair *key,
  *                  a MBEDTLS_ERR_ECP_XXX or MBEDTLS_ERR_MPI_XXX code.
  */
 int mbedtls_ecp_check_pub_priv( const mbedtls_ecp_keypair *pub, const mbedtls_ecp_keypair *prv );
+
+int ecp_double_jac( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
+                           const mbedtls_ecp_point *P );
+int ecp_normalize_jac( const mbedtls_ecp_group *grp, mbedtls_ecp_point *pt );
+
+int ecp_add_mixed( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
+                          const mbedtls_ecp_point *P, const mbedtls_ecp_point *Q );
 
 #if defined(MBEDTLS_SELF_TEST)
 /**

@@ -21,5 +21,8 @@ RK_RES soft_hash(uint32_t algo, const uint8_t *in, uint32_t in_len,
 RK_RES soft_hmac(uint32_t algo, const uint8_t *key, uint32_t key_len,
 		 const uint8_t *in,  uint32_t in_len, uint8_t *out, uint32_t *out_len);
 
+RK_RES soft_ec_sign(rk_ec_priv_key_pack *priv_key,
+		   const uint8_t *hash, uint32_t hash_len,
+		   uint8_t *sig, uint32_t *sig_len);
 #endif
 

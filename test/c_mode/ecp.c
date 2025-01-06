@@ -156,6 +156,10 @@ static const mbedtls_ecp_curve_info ecp_supported_curves[] =
 #if defined(MBEDTLS_ECP_DP_SECP192K1_ENABLED)
     { MBEDTLS_ECP_DP_SECP192K1,    18,     192,    "secp192k1"         },
 #endif
+#if defined(MBEDTLS_ECP_DP_SM2P256V1_ENABLED)
+		{ MBEDTLS_ECP_DP_SM2P256V1,    17,	   256,    "sm2_256"		   },
+#endif
+
     { MBEDTLS_ECP_DP_NONE,          0,     0,      NULL                },
 };
 
@@ -741,7 +745,7 @@ cleanup:
  * Normalize jacobian coordinates so that Z == 0 || Z == 1  (GECC 3.2.1)
  * Cost: 1N := 1I + 3M + 1S
  */
-static int ecp_normalize_jac( const mbedtls_ecp_group *grp, mbedtls_ecp_point *pt )
+int ecp_normalize_jac( const mbedtls_ecp_group *grp, mbedtls_ecp_point *pt )
 {
     int ret;
     mbedtls_mpi Zi, ZZi;
@@ -903,7 +907,7 @@ cleanup:
  *             4M + 4S          (A == -3)
  *             3M + 6S + 1a     otherwise
  */
-static int ecp_double_jac( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
+int ecp_double_jac( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
                            const mbedtls_ecp_point *P )
 {
     int ret;
@@ -994,7 +998,7 @@ cleanup:
  *
  * Cost: 1A := 8M + 3S
  */
-static int ecp_add_mixed( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
+int ecp_add_mixed( const mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
                           const mbedtls_ecp_point *P, const mbedtls_ecp_point *Q )
 {
     int ret;
