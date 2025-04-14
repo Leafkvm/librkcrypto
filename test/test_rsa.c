@@ -769,7 +769,7 @@ static RK_RES test_rsa_priv_enc(uint32_t padding, const char *padding_name,
 
 	if (data_len != out_len || memcmp(dec_buf, data, data_len)) {
 		printf("rk_rsa_pub_decrypt compare failed\n");
-		test_dump_hex("result", enc_buf, out_len);
+		test_dump_hex("result", dec_buf, out_len);
 		test_dump_hex("expect", data, data_len);
 		res = RK_CRYPTO_ERR_GENERIC;
 		goto exit;
