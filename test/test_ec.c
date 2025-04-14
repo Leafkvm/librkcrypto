@@ -45,7 +45,9 @@ static RK_RES test_ec_verify(enum RK_EC_CURVE curve, const char *name,
 
 	res = rk_hash_virt(hash_algo, data, sizeof(data), digest, &digest_len);
 	if (res) {
-		printf("rk_hash_virt[%u] %x\n", hash_algo, res);
+		if (res != RK_CRYPTO_ERR_NOT_SUPPORTED)
+			printf("rk_hash_virt[%u] %x\n", hash_algo, res);
+
 		goto exit;
 	}
 
@@ -62,12 +64,7 @@ static RK_RES test_ec_verify(enum RK_EC_CURVE curve, const char *name,
 	if (res) {
 		if (res != RK_CRYPTO_ERR_NOT_SUPPORTED)
 			printf("rk_ec_verify failed %x\n", res);
-		else {
-			res = RK_CRYPTO_SUCCESS;
 
-			if (verbose)
-				printf("******** %-20s \t test N/A   !!! ********\n", name);
-		}
 		goto exit;
 	}
 
@@ -85,8 +82,14 @@ static RK_RES test_ec_verify(enum RK_EC_CURVE curve, const char *name,
 		printf("******** %-20s \t test PASS  !!! ********\n", name);
 
 exit:
-	if (res && verbose)
-		printf("******** %-20s \t test FAIL  !!! ********\n", name);
+	if (res && verbose) {
+		if (res == RK_CRYPTO_ERR_NOT_SUPPORTED) {
+			res = RK_CRYPTO_SUCCESS;
+			printf("******** %-20s \t test N/A   !!! ********\n", name);
+		} else {
+			printf("******** %-20s \t test FAIL  !!! ********\n", name);
+		}
+	}
 
 	return res;
 }
