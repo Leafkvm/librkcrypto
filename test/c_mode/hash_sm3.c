@@ -203,7 +203,7 @@ void rkgm_sm3_update(rkgm_sm3_ctx_t *ctx, const unsigned char *data, size_t data
 	}
 }
 
-void rkgm_sm3_final(rkgm_sm3_ctx_t *ctx, unsigned char *digest)
+void rkgm_sm3_final(rkgm_sm3_ctx_t *ctx, unsigned char digest[SM3_DIGEST_LENGTH])
 {
 	int i;
 

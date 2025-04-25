@@ -903,18 +903,17 @@ RK_RES rk_rsa_padding_check_pss_type(uint16_t key_len, uint16_t n_bits,
 	if (res)
 		goto error;
 
-	free(buf);
-
-	if (memcmp(p + slen, result, hlen) == 0)
-		return RK_CRYPTO_SUCCESS;
-	else
-		return RK_CRYPTO_ERR_VERIFY;
+	if (memcmp(p + slen, result, hlen) == 0) {
+		res =  RK_CRYPTO_SUCCESS;
+	} else {
+		res = RK_CRYPTO_ERR_VERIFY;
+	}
 
 error:
 	if (buf)
 		free(buf);
 
-	return RK_CRYPTO_ERR_PADDING;
+	return res;
 }
 
 RK_RES rk_rsa_pubkey_encode(rk_rsa_pub_key_pack *pub,

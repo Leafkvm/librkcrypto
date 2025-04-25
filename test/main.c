@@ -16,6 +16,7 @@
 #include "test_multi.h"
 #include "test_rsa.h"
 #include "test_ec.h"
+#include "dec_rootfs.h"
 
 enum {
 	OPTION_TOP = 0,
@@ -33,6 +34,7 @@ enum {
 	MULTI,
 	RSA,
 	EC,
+	DEC_ROOTFS,
 	OPTION_BUTT,
 };
 
@@ -58,6 +60,7 @@ static void guide(void)
 	printf("\t               1 for virt\n");
 	printf("\t               2 for otp\n");
 	printf("\t               3 for all \n");
+	printf("\t-dec_rootfs    Function of dec rootfs, Requires two arguments: <rootfs_node> <firmware_size>\n");
 	printf("\t-stress [cnt]  stress cnt times of all cipher/hash/hmac\n");
 }
 
@@ -83,6 +86,7 @@ int main(int argc, char *argv[])
 		{"multi",	0,	NULL,	MULTI},
 		{"rsa",		0,	NULL,	RSA},
 		{"ec",		0,	NULL,	EC},
+		{"dec_rootfs",	1,	NULL,	DEC_ROOTFS},
 		{NULL,		0,	NULL,	0},
 	};
 
@@ -151,6 +155,15 @@ int main(int argc, char *argv[])
 			break;
 		case MULTI:
 			test_multi();
+			break;
+		case DEC_ROOTFS:
+			if (optind + 1 <= argc) {
+				char *device_path = argv[optind - 1];
+				printf("device_path = %s\n", device_path);
+				unsigned long img_size = atoi(argv[optind]);
+				printf("img_size = %lu\n", img_size);
+				dec_rootfs(device_path, img_size);
+			}
 			break;
 		case '?':
 			guide();
