@@ -46,9 +46,9 @@ RK_RES demo_otpkey(void)
 		printf("Write otp key 0, success!\n");
 
 	/* Do cipher. */
-	res = rk_crypto_init();
+	res = rk_crypto_mem_init();
 	if (res) {
-		printf("rk_crypto_init error! res: 0x%08x\n", res);
+		printf("rk_crypto_mem_init error! res: 0x%08x\n", res);
 		return res;
 	}
 
@@ -108,7 +108,7 @@ exit:
 	rk_crypto_mem_free(in);
 	rk_crypto_mem_free(out);
 
-	rk_crypto_deinit();
+	rk_crypto_mem_deinit();
 
 	return res;
 }

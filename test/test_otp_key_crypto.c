@@ -423,9 +423,9 @@ static int test_otp_key_fd(void)
 	uint32_t i, j;
 	uint32_t key_id;
 
-	res = rk_crypto_init();
+	res = rk_crypto_mem_init();
 	if (res) {
-		printf("rk_crypto_init error!\n");
+		printf("rk_crypto_mem_init error!\n");
 		return res;
 	}
 
@@ -441,7 +441,7 @@ static int test_otp_key_fd(void)
 	}
 
 exit:
-	rk_crypto_deinit();
+	rk_crypto_mem_deinit();
 	return res;
 }
 
