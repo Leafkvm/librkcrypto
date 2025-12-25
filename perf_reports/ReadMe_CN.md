@@ -28,12 +28,12 @@
 这时候请开启`CRYPTO_SM4_GENERIC`配置后，重新编译kernel烧写进行测试。
 
 ## 自动化测试
-以上步骤可以通过`run_perf.sh`自动完成，需要预先将`librkcrypto_test`和`librkcrypto.so`推送到板子上。
+以上步骤可以通过`sh run_perf.sh`自动完成，需要预先将`librkcrypto_test`和`librkcrypto.so`推送到板子上。
 
 测试结果示例：
 
 ```shell
-root@linaro-alip:/data# ./run_perf.sh
+root@linaro-alip:/data# sh run_perf.sh
 =================== CPU0 (Big Core) Frequency Setup =================
 Setting CPU0 (Big Core) governor to userspace...
 Available CPU frequencies: 408000 600000 816000 1008000 1200000 1416000 1608000 1800000 2016000

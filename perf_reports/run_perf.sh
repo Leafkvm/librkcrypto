@@ -1,4 +1,7 @@
-#!/bin/bash
+# NOTE:
+#   Do NOT rely on shebang.
+#   Android does not provide /bin/sh; use POSIX sh and
+#   invoke this script explicitly with "sh".
 
 CPU_POLICY_PATH="/sys/devices/system/cpu/cpufreq/policy0"
 DDR_PATH="/sys/class/devfreq/dmc"
@@ -88,7 +91,7 @@ if ! command -v ${RK_TEST_BIN%% *} >/dev/null 2>&1; then
     echo "Error: '$RK_TEST_BIN' command not found!"
 else
     if command -v taskset >/dev/null 2>&1; then
-        cmd="taskset -c 0 $RK_TEST_BIN"
+        cmd="taskset 1 $RK_TEST_BIN"
         echo "Executing command: $cmd"
         $cmd
     else

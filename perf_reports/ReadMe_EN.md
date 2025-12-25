@@ -31,13 +31,13 @@ In this case, please enable the `CRYPTO_SM4_GENERIC` configuration, rebuild the 
 
 ## Automated Testing
 
-The above steps can be automated using the `run_perf.sh` script.
+The above steps can be automated using the `sh run_perf.sh` script.
 Before running the script, make sure to push `librkcrypto_test` and `librkcrypto.so` to the target board.
 
 Example test result:
 
 ```shell
-root@linaro-alip:/data# ./run_perf.sh
+root@linaro-alip:/data# sh run_perf.sh
 =================== CPU0 (Big Core) Frequency Setup =================
 Setting CPU0 (Big Core) governor to userspace...
 Available CPU frequencies: 408000 600000 816000 1008000 1200000 1416000 1608000 1800000 2016000
